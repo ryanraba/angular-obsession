@@ -3,21 +3,28 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="#0099cc"
-    tools:context="com.ryanraba.angular_obsession.SummaryActivity">
+    tools:context="com.ryanraba.angular_obsession.FullscreenActivity">
 
     <!-- The primary full-screen view. This can be replaced with whatever view
          is needed to present your content, e.g. VideoView, SurfaceView,
          TextureView, etc. -->
     <TextView
-        android:id="@+id/summaryView"
+        android:id="@+id/fsView"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:gravity="center"
         android:keepScreenOn="true"
-        android:text="@string/dummy_content"
         android:textColor="#33b5e5"
         android:textSize="50sp"
         android:textStyle="bold" />
+        <!-- android:text="@string/dummy_content" -->
+
+    <CheckBox
+        android:id="@+id/option_obstacles"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_vertical|center_horizontal"
+        android:text="Obstacles" />
 
     <!-- This FrameLayout insets its children based on system windows using
          android:fitsSystemWindows. -->
@@ -27,7 +34,7 @@
         android:fitsSystemWindows="true">
 
         <LinearLayout
-            android:id="@+id/summaryLinearLayout1"
+            android:id="@+id/fsLinearLayout1"
             style="?metaButtonBarStyle"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -37,14 +44,20 @@
             tools:ignore="UselessParent">
 
             <Button
-                android:id="@+id/dummy_button"
+                android:id="@+id/start_button"
                 style="?metaButtonBarButtonStyle"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="@string/dummy_button" />
+                android:onClick="startGame"
+                android:text="Start" />
 
         </LinearLayout>
+
+        <Space
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content" />
+
     </FrameLayout>
 
 </FrameLayout>

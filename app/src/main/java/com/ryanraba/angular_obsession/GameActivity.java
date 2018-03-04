@@ -1,18 +1,16 @@
 package com.ryanraba.angular_obsession;
 
 import android.annotation.SuppressLint;
-import android.content.Context;
-import android.content.Intent;
-import android.os.PowerManager;
+import android.graphics.Canvas;
 import android.support.v7.app.ActionBar;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.os.Handler;
 import android.util.DisplayMetrics;
 import android.view.MotionEvent;
+import android.view.SurfaceHolder;
+import android.view.SurfaceView;
 import android.view.View;
-import android.widget.EditText;
-import android.widget.ImageView;
 
 /**
  * An example full-screen activity that shows and hides the system UI (i.e.
@@ -23,6 +21,10 @@ public class GameActivity extends AppCompatActivity
     Thread tr = null;
     GameController gameView;
     boolean gameUpdateRunning = false;
+
+    private SurfaceView surface;
+    private SurfaceHolder holder;
+    Canvas canvas;
 
     private static final boolean AUTO_HIDE = true;
     private static final int AUTO_HIDE_DELAY_MILLIS = 3000;
@@ -87,12 +89,15 @@ public class GameActivity extends AppCompatActivity
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
+        DisplayMetrics screen = new DisplayMetrics();
+        getWindowManager().getDefaultDisplay().getMetrics(screen);
+        gameView = new GameController(getResources(), screen.widthPixels, screen.heightPixels, screen.densityDpi);
+
         setContentView(R.layout.activity_game);
 
         mVisible = true;
         //mControlsView = findViewById(R.id.fullscreen_content_controls);
         mContentView = findViewById(R.id.gameView);
-
 
         // Set up the user interaction to manually show or hide the system UI.
         mContentView.setOnClickListener(new View.OnClickListener() {
@@ -102,16 +107,11 @@ public class GameActivity extends AppCompatActivity
             }
         });
 
-        // Get the Intent that started this activity and extract the string
-        Intent intent = getIntent();
-        //String message = intent.getStringExtra(FullscreenActivity.EXTRA_MESSAGE);
-
-        DisplayMetrics screen = new DisplayMetrics();
-        getWindowManager().getDefaultDisplay().getMetrics(screen);
-        gameView = new GameController((ImageView) findViewById(R.id.gameView), screen.widthPixels, screen.heightPixels/2);
+        surface = (SurfaceView) findViewById(R.id.gameView);
+        holder = surface.getHolder();
 
         // assign function to handle touches to graph
-        ((ImageView)findViewById(R.id.gameView)).setOnTouchListener(gameView.thresholdListener);
+        surface.setOnTouchListener(gameView.launchListener);
 
     }
     /////////////////////////////////////////////////////////////////
@@ -179,6 +179,14 @@ public class GameActivity extends AppCompatActivity
             gameUpdateThread();
     }
 
+    public void onPause()
+    {
+        super.onPause();
+        gameUpdateRunning = false;
+        try { if (tr != null) tr.join(); }
+        catch (InterruptedException ex) {}
+    }
+
     public void onStop()
     {
         super.onStop();
@@ -207,59 +215,41 @@ public class GameActivity extends AppCompatActivity
 
         tr = new Thread() {
             public void run() {
-                //short[] soundBuffer = new short[SettingsStn.dd.buffsize*2];
-                //float[] filteredBuffer = new float[SettingsStn.dd.buffsize*2];
-                //float[] freqBuffer = new float[soundPlot.nn];
-                //byte[] inputBuffer = new byte[SettingsStn.dd.buffsize*2];
-                //BufferedInputStream bis = null;
-                //int rc, playBuff;
-                //boolean playbackError = false;
 
-                //PowerManager mgr = (PowerManager) getSystemService(Context.POWER_SERVICE);
-                //PowerManager.WakeLock wakeLock = mgr.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "AngularObsessionLock");
-                //wakeLock.acquire();
+                boolean gamefinished = false;
 
-                //playBuff = AudioTrack.getMinBufferSize(SettingsStn.dd.sr,
-                //        AudioFormat.CHANNEL_IN_MONO,
-                //        AudioFormat.ENCODING_PCM_16BIT);
-                //playBuff = Math.max(mp3FrameSize*4, playBuff);
-
-                //AudioTrack audioTrack = new AudioTrack(AudioManager.STREAM_MUSIC,
-                //        SettingsStn.dd.sr,
-                //        AudioFormat.CHANNEL_OUT_MONO,
-                //        AudioFormat.ENCODING_PCM_16BIT,
-                //        playBuff,
-                //        AudioTrack.MODE_STREAM);
-                //audioTrack.play();
-
-                // check media availability
-                //recordError = !Environment.MEDIA_MOUNTED.equals(Environment.getExternalStorageState());
-
-                while (gameUpdateRunning)
+                while (gameUpdateRunning && !gamefinished)
                 {
-                    gameView.plotAudio();
-
-                    GameActivity.this.runOnUiThread(new Runnable() {
-                        public void run() {
-                            gameView.refreshPlot();
-                        }
-                    });
-
                     try
                     {
-                        Thread.sleep(50);
+                        Thread.sleep(25);
                     }
                     catch(InterruptedException ex)
                     {
                         gameUpdateRunning = false;
                         Thread.currentThread().interrupt();
                     }
-                    //audioTrack.write(soundBuffer, 0, rc);
+
+                    if(!holder.getSurface().isValid())
+                        continue;
+
+                    canvas = holder.lockCanvas();
+
+                    gamefinished = gameView.animateGame(canvas);
+
+                    holder.unlockCanvasAndPost(canvas);
+
+                    //GameActivity.this.runOnUiThread(new Runnable() {
+                    //    public void run() {
+                    //        return;
+                    //    }
+                    //});
+
                 }
 
-                //audioTrack.stop();
-                //audioTrack.release();
                 gameUpdateRunning = false;
+                if (gamefinished) finish();
+
                 //wakeLock.release();
             }  // end thread run
         }; // end thread body

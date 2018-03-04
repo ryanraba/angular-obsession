@@ -1,281 +1,212 @@
 package com.ryanraba.angular_obsession;
 
-import android.graphics.Bitmap;
+import android.content.res.Resources;
 import android.graphics.Canvas;
 import android.graphics.Color;
-import android.graphics.Paint;
+import android.graphics.Rect;
+import android.graphics.drawable.Drawable;
 import android.view.MotionEvent;
 import android.view.View;
-import android.widget.ImageView;
+
+import java.util.Random;
+
 
 class GameController {
-    Thread t = null;
-    ImageView image;
-    Bitmap bmap;
-    Canvas canvas;
-    int guardX;  // max X of gridline
-    int guardY;  // max Y of gridline
-    int maxX;    // max X of plot
-    int maxY;    // max Y of plot
-    int guardPx, textPx;
-    int originX, originY;
-    int spanX, spanY;
-    float xstep, ystep;
+    private Drawable launcher;
+    private Drawable projectile;
+    private Drawable[] blocks;
+    private Drawable wall;
+    private Resources res;
 
-    // fft globals
-    public int nn = 2048;   // fft size power of 2
-    int [] plotidxs;        // precompute uniform set of freq domain indices to plot
-    float [] freqThreshDB;  // frequency domain threshold values db
-    float [] freqFilterDB;  // frequency domain filter values db (display purposes only
-    float hzstep = 44100/nn;
-    int xtics = 6;
-    int plotLength = xtics*10;
+    private int[] projectile_ids = {R.drawable.ball, R.drawable.ball2, R.drawable.ball3};
+    private int[] block_ids = {R.drawable.block, R.drawable.block2, R.drawable.block3};
+    private int maxX;    // max X of plot
+    private int maxY;    // max Y of plot
+    private int centerX;
 
-    // constants used for x-axis scale conversion equation
-    // works out to be 20Hz to 20kHz
-    // flog = k*log(n) + c
-    float kk = (float)2.378234;
-    float cc = (float)-4.22886;
+    private int launcher_wx, launcher_y;
+    private int projectile_x, projectile_y;
+    private int projectile_sx, projectile_sy;
+    private float launcher_angle, ball_angle;
+    private int bounce_count, turn_count;
+    private int projectile_increment, projectile_state;
 
-    // find indices in frequency domain corrensponding to human hearing
-    // 20 Hz to 20 kHz
-    //int hzmin = (int)Math.ceil(60 / hzstep);
-    //int hzmax = (int)Math.floor(20000 / hzstep);
+    Random rand = new Random();
+
+    boolean projectile_fired, collision, gameover;
+
 
     ///////////////////////////
     // Constructor
     ///////////////////////////
-    GameController(ImageView image_i, int width, int height)
+    GameController(Resources res_i, int width, int height, int density_i)
     {
-        image = image_i;
+        int[] block_state = {0};
+
+        res = res_i;
         maxX = width;
         maxY = height;
-        textPx = height/20;
-        guardPx = height/10;
-        guardX = width - guardPx;
-        guardY = height - guardPx;
-        originX = guardPx + guardPx/2;
-        originY = maxY - guardPx - guardPx/2;
-        spanX = maxX - 2*guardPx;
-        spanY = maxY - 2*guardPx;
-        xstep = (float)spanX / (float)plotLength;
-        ystep = (float)spanY / (float)90; // db
-        //ystep = (float)spanY / (sqrt2*(float)32768); // db
+        centerX = maxX / 2;
 
-        bmap = Bitmap.createBitmap(maxX, maxY, Bitmap.Config.ARGB_8888);
-        canvas = new Canvas(bmap);
-
-        // constructor must be called from GUI thread
-        initializePlot(true);
-
-        // compute a uniform set of steps in log scale for later plotting
-        // of freq domain data
-        float hzval;
-        plotidxs = new int[plotLength];
-        for (int ii=0; ii < plotLength; ii++)
+        launcher = res.getDrawable(R.drawable.launcher_basic_24dp);
+        wall = res.getDrawable(R.drawable.wall);
+        blocks = new Drawable[10*5];
+        for (int ii=0; ii<blocks.length; ii++)
         {
-            hzval = (float)Math.pow(10.0, ((ii/10.0) - cc)/kk);
-            plotidxs[ii] = Math.round(hzval/hzstep);
+            block_state[0] = rand.nextInt(3);
+            blocks[ii] = res.getDrawable(block_ids[block_state[0]]);
+            blocks[ii].setState(block_state);
         }
+        projectile_state = rand.nextInt(3);
+        projectile = res.getDrawable(projectile_ids[projectile_state]);
 
-        // setup initial default threshold
-        freqThreshDB = new float[nn];
-        freqFilterDB = new float[nn];
+        launcher_wx = maxX/25;
+        launcher_y = maxY/20;
+        projectile_x = maxX/10;
+        projectile_y = maxX/10;
+        projectile_increment = (int)(10 * ((float)density_i / 160f));
 
+        launcher_angle = 0;
+        ball_angle = 0;
+        projectile_sx = projectile_x;
+        projectile_sy = projectile_y;
+        projectile_fired = false;
+        bounce_count = 0;
+        turn_count = 0;
+        collision = false;
+        gameover = false;
     }
 
 
     /////////////////////////
-    public View.OnTouchListener thresholdListener = new View.OnTouchListener()
+    public View.OnTouchListener launchListener = new View.OnTouchListener()
     {
         public boolean onTouch(View v, MotionEvent event)
         {
-            float xx, yy, ydB;
-            int ii, jj, xindex, idxs;
+            float px, py;
 
-            xx = event.getX() - originX;
-            if (xx < 0) xx = 0;
-            if (xx > spanX) xx = spanX+1;
+            if (projectile_fired) return true;
 
-            yy = originY - event.getY();
-            if (yy > spanY) yy = spanY;
-            if (yy < 0) yy = 0;
+            //System.out.println("MAX x, y = " + maxX + ", " + maxY);
+            //System.out.println("Touch at " + event.getX() + ", " + event.getY());
 
-            //System.out.println("Touch at " + xx);
+            // rotate launcher to follow finger
+            px = event.getX() - (maxX / 2);
+            py = maxY - event.getY();
+            if (py <= 0)
+                py = 1;
+            if (px == 0)
+                launcher_angle = 0;
+            else
+                launcher_angle = 1*((float)Math.toDegrees(Math.atan(px/py)));
 
-            // figure out the dB value of the point
-            ydB = (yy / ystep) - 90;
-
-            // figure out where xx falls in the list of plotIdxs
-            // set new threshold for that point accordingly
-            xindex = Math.round(((float)xx/(float)spanX)*plotLength);
-            if (xindex < 0) xindex = 0;
-            if (xindex >= plotLength) xindex = plotLength - 1;
-
-            freqThreshDB[plotidxs[xindex]] = ydB;
+            if (launcher_angle > 75) launcher_angle = 75;
+            else if (launcher_angle < -75) launcher_angle = -75;
+            //System.out.println("Rotate at " + rot_angle);
 
             if (event.getAction() == MotionEvent.ACTION_UP)
             {
-                // convert to linear values and interpolate between points in plot array
-                for (ii = 0; ii < plotLength - 1; ii++)
-                {
-                    idxs = plotidxs[ii + 1] - plotidxs[ii];
-                    for (jj = 0; jj < idxs; jj++)
-                        freqThreshDB[plotidxs[ii] + jj] = freqThreshDB[plotidxs[ii]] + (freqThreshDB[plotidxs[ii+1]] - freqThreshDB[plotidxs[ii]]) * ((float)jj / (float)idxs);
-                }
+                projectile_fired = true;
             }
+            //else if (event.getAction() == MotionEvent.ACTION_DOWN)
 
+            ball_angle = launcher_angle;
             return true;
         }
     };
 
 
-
-    ///////////////
-    public void initializePlot(boolean draw)
-    {
-        int ii;
-        Paint paint = new Paint();
-
-        // coordinates [left, top, right, bottom]
-        paint.setAntiAlias(true);
-        paint.setColor(Color.BLACK);
-        paint.setStyle(Paint.Style.FILL);
-        canvas.drawRect(0, 0, (float) maxX, (float) maxY, paint);
-
-        // add gridlines over top
-        // coordinates [startx, starty, stopx, stopy]
-        float xinc = (guardX - guardPx)/xtics;  // vertical line increments
-        float yinc = (guardY - guardPx)/9;  // horizontal line increments
-        paint.setColor(Color.GRAY);
-        paint.setStyle(Paint.Style.STROKE);
-        paint.setStrokeWidth(2);
-        paint.setSubpixelText(true);
-        paint.setTextSize(textPx);
-        for (ii=0; ii <= 9; ii++)  // draw horizontal lines
-        {
-            canvas.drawLine(guardPx, yinc*ii + guardPx/2, maxX, yinc*ii + guardPx/2, paint);
-            if (ii==0)
-                canvas.drawText(" dB", 0, yinc * ii + guardPx / 2 + textPx / 2, paint);
-            else
-                canvas.drawText("-" + Integer.toString(ii * 10), 0, yinc * ii + guardPx / 2 + textPx / 2, paint);
-        }
-
-        canvas.drawText(" Hz", 0, maxY - textPx / 2, paint);
-        for (ii=0; ii <= xtics; ii++)  // draw vertical lines
-        { // xscale = kk log(Hz) + cc => Hz = 10^((xscale - cc)/kk)
-            canvas.drawLine(xinc * ii + guardPx + guardPx / 2, 0, xinc * ii + guardPx + guardPx / 2, guardY, paint);
-            if (ii < 3)
-                canvas.drawText(Integer.toString(Math.round((float)Math.pow(10, (ii-cc)/kk))), xinc*ii + guardPx, maxY-textPx/2, paint);
-            else
-                canvas.drawText(Integer.toString(Math.round((float)Math.pow(10, (ii-cc)/kk))/1000)+"k", xinc*ii + guardPx, maxY-textPx/2, paint);
-        }
-        // draw (only if running from GUI thread)
-        if (draw) image.setImageBitmap(bmap);
-    }
-
-
-
     ///////////////////////////////////////
-    // plots data and returns true if audio is above threshold
-    public void plotAudio()
+    public void setBlocks(Canvas canvas)
     {
-        boolean rc=false;
-        int ii;
-        float px, py, cx, cy, tx, ty, rr=0;
+        int ll,tt;
+        boolean visibleblocks = false;
 
-        initializePlot(false);
-        plotThreshold(freqThreshDB, Color.rgb(230,184,0));
-        plotThreshold(freqFilterDB, Color.rgb(222, 125, 92));
+        wall.setBounds(0, 0, maxX, turn_count*projectile_sy);
+        wall.draw(canvas);
+        if (Rect.intersects(wall.getBounds(), projectile.getBounds())) collision = true;
 
-        /*
-        Paint paint = new Paint();
-        paint.setAntiAlias(true);
-        paint.setStrokeCap(Paint.Cap.ROUND);
-        paint.setStyle(Paint.Style.STROKE);
-        //paint.setStrokeWidth(SettingsStn.dd.plotLineWidth / 2);
-
-        // draw graph with points above threshold with a different color
-        for (ii=1; ii < plotLength; ii++)
+        for (int ii=0; ii<blocks.length; ii++)
         {
-            px = originX + (ii-1) * xstep;
-            py = originY - (ystep * Math.max(1, freqBuffer[plotidxs[ii-1]] + 90));
-            cx = originX + ii * xstep;
-            cy = originY - (ystep * Math.max(1, freqBuffer[plotidxs[ii]] + 90));
+            ll = (ii%10)*projectile_sx;
+            tt = (ii/10)*projectile_sy + turn_count*projectile_sy;
+            blocks[ii].setBounds(ll, tt, ll+projectile_sx, tt+projectile_sy);
 
-            // both points above threshold
-            if ((freqBuffer[plotidxs[ii]] > freqThreshDB[plotidxs[ii]]) && (freqBuffer[plotidxs[ii-1]] > freqThreshDB[plotidxs[ii-1]]))
+            if (blocks[ii].isVisible() && (Rect.intersects(blocks[ii].getBounds(), projectile.getBounds())))
             {
-                paint.setColor(Color.rgb(184,230,46));
-                canvas.drawLine(px, py, cx, cy, paint);
+                collision = true;
+                blocks[ii].setVisible(false, false);
             }
-            // first above, second below
-            else if ((freqBuffer[plotidxs[ii]] > freqThreshDB[plotidxs[ii]]) && (freqBuffer[plotidxs[ii-1]] < freqThreshDB[plotidxs[ii-1]]))
+
+            if (blocks[ii].isVisible() && (tt >= (maxY - launcher_y - 2*projectile_sy)))
+                gameover = true;
+
+            if (blocks[ii].isVisible())
             {
-                paint.setColor(Color.rgb(184,230,46));
-                rr = (freqBuffer[plotidxs[ii]] - freqThreshDB[plotidxs[ii]]) / Math.abs(freqBuffer[plotidxs[ii]] - freqBuffer[plotidxs[ii-1]]);
-                tx = originX + (ii * xstep) - xstep * rr; // next x value
-                ty = originY - ystep*Math.max(1, freqThreshDB[plotidxs[ii]] + 90);
-                canvas.drawLine(cx, cy, tx, ty, paint);
-                paint.setColor(Color.LTGRAY);
-                canvas.drawLine(px, py, tx, ty, paint);
-            }
-            // first below, second above
-            else if ((freqBuffer[plotidxs[ii]] < freqThreshDB[plotidxs[ii]]) && (freqBuffer[plotidxs[ii-1]] > freqThreshDB[plotidxs[ii-1]]))
-            {
-                paint.setColor(Color.rgb(184,230,46));
-                rr = (freqBuffer[plotidxs[ii-1]] - freqThreshDB[plotidxs[ii-1]]) / Math.abs(freqBuffer[plotidxs[ii]] - freqBuffer[plotidxs[ii-1]]);
-                tx = originX + ((ii-1) * xstep) + xstep * rr; // next x value
-                ty = originY - ystep*Math.max(1, freqThreshDB[plotidxs[ii-1]] + 90);
-                canvas.drawLine(px, py, tx, ty, paint);
-                paint.setColor(Color.LTGRAY);
-                canvas.drawLine(cx, cy, tx, ty, paint);
-            }
-            // both points below threshold
-            else
-            {
-                paint.setColor(Color.LTGRAY);
-                canvas.drawLine(px, py, cx, cy, paint);
+                blocks[ii].draw(canvas);
+                visibleblocks = true;
             }
         }
-        */
-        // plot refresh happens on gui thread
-        image.postInvalidate();
+        if (!visibleblocks) gameover = true;
     }
 
 
     ///////////////////////////////////////
-    // plot frequency domain threshold and values
-    public void plotThreshold(float [] freqDBArray, int color)
+    public void setProjectilePosition()
     {
-        int ii;
-
-        Paint paint = new Paint();
-        paint.setAntiAlias(true);
-        paint.setStrokeCap(Paint.Cap.ROUND);
-        paint.setColor(color);
-        paint.setStyle(Paint.Style.STROKE);
-        //paint.setStrokeWidth(SettingsStn.dd.plotLineWidth / 2);
-
-        float[] drawPoints = new float[plotLength*2];
-
-        // draw graph
-        for (ii=0; ii < plotLength; ii++)
+        if ((projectile_y <= 0) || (bounce_count >= 10) || (collision))
         {
-            drawPoints[2*ii] = ii*xstep + originX;
-            drawPoints[2*ii+1] = originY - (ystep*(freqDBArray[plotidxs[ii]]+90));
+            projectile_fired = false;
+            ball_angle = launcher_angle;
+            bounce_count = 0;
+            collision = false;
+            turn_count = turn_count + 1;
+            projectile_state = rand.nextInt(3);
+            projectile = res.getDrawable(projectile_ids[projectile_state]);
         }
-        for (ii=1; ii < plotLength; ii++)
-            canvas.drawLine(drawPoints[2*(ii-1)], drawPoints[2*(ii-1)+1], drawPoints[2*ii], drawPoints[2*ii+1], paint);
+        else if ((projectile_x <= 0) || (projectile_x > maxX))
+        {
+            ball_angle = -ball_angle;
+            bounce_count = bounce_count + 1;
+        }
+
+        if (projectile_fired)
+        {
+            projectile_x += (int)(projectile_increment * Math.sin(Math.toRadians(ball_angle)));
+            projectile_y -= (int)(projectile_increment * Math.cos(Math.toRadians(ball_angle)));
+        }
+        else
+        {
+            projectile_x = (int)((launcher_y/2+projectile_sx/2) * Math.sin(Math.toRadians(ball_angle)) + centerX);
+            projectile_y = (int)(maxY - launcher_y/2 - (launcher_y/2+projectile_sy/2) * Math.cos(Math.toRadians(ball_angle)));
+        }
     }
 
 
-    ////////////////////////////
-    public void refreshPlot()
+    ///////////////////////////////////////
+    // runs game
+    public boolean animateGame(Canvas canvas)
     {
-        image.setImageBitmap(bmap);
+        int pw = projectile_sx/2;
+
+        canvas.drawColor(Color.WHITE);
+
+        setBlocks(canvas);
+        setProjectilePosition();
+
+        canvas.save();
+        canvas.rotate(launcher_angle, centerX, maxY - (launcher_y/2));
+
+        launcher.setBounds(centerX - launcher_wx, maxY - launcher_y, centerX + launcher_wx, maxY);
+        launcher.draw(canvas);
+
+        canvas.restore();
+
+        projectile.setBounds(projectile_x-pw, projectile_y-pw,projectile_x+pw, projectile_y+pw);
+        projectile.draw(canvas);
+
+        //System.out.println("################## got here ###################");
+        return gameover;
     }
-
-
 
 }
