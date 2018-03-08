@@ -1,6 +1,7 @@
 package com.ryanraba.angular_obsession;
 
 import android.annotation.SuppressLint;
+import android.content.Intent;
 import android.graphics.Canvas;
 import android.support.v7.app.ActionBar;
 import android.support.v7.app.AppCompatActivity;
@@ -11,6 +12,8 @@ import android.view.MotionEvent;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.View;
+import android.widget.EditText;
+import android.widget.TextView;
 
 /**
  * An example full-screen activity that shows and hides the system UI (i.e.
@@ -25,6 +28,7 @@ public class GameActivity extends AppCompatActivity
     private SurfaceView surface;
     private SurfaceHolder holder;
     Canvas canvas;
+    int gamescore = 0;
 
     private static final boolean AUTO_HIDE = true;
     private static final int AUTO_HIDE_DELAY_MILLIS = 3000;
@@ -89,11 +93,12 @@ public class GameActivity extends AppCompatActivity
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
+        setContentView(R.layout.activity_game);
+
         DisplayMetrics screen = new DisplayMetrics();
         getWindowManager().getDefaultDisplay().getMetrics(screen);
-        gameView = new GameController(getResources(), screen.widthPixels, screen.heightPixels, screen.densityDpi);
 
-        setContentView(R.layout.activity_game);
+        gameView = new GameController(getResources(), (TextView)findViewById(R.id.scoreBox), screen.widthPixels, screen.heightPixels, screen.densityDpi);
 
         mVisible = true;
         //mControlsView = findViewById(R.id.fullscreen_content_controls);
@@ -212,13 +217,14 @@ public class GameActivity extends AppCompatActivity
     {
         if (gameUpdateRunning) return;
         gameUpdateRunning = true;
+        gamescore = 0;
 
         tr = new Thread() {
             public void run() {
 
-                boolean gamefinished = false;
+                int lastscore = -1;
 
-                while (gameUpdateRunning && !gamefinished)
+                while (gameUpdateRunning && (gamescore >= 0))
                 {
                     try
                     {
@@ -235,20 +241,26 @@ public class GameActivity extends AppCompatActivity
 
                     canvas = holder.lockCanvas();
 
-                    gamefinished = gameView.animateGame(canvas);
+                    gamescore = gameView.animateGame(canvas);
 
                     holder.unlockCanvasAndPost(canvas);
 
-                    //GameActivity.this.runOnUiThread(new Runnable() {
-                    //    public void run() {
-                    //        return;
-                    //    }
-                    //});
+                    if ((gamescore != lastscore) && (gamescore >= 0))
+                        GameActivity.this.runOnUiThread(new Runnable() {
+                            public void run() {
+                                ((TextView)findViewById(R.id.scoreBox)).setText(String.valueOf(gamescore));
+                            }
+                        });
 
+                    if (gamescore >= 0) lastscore = gamescore;
                 }
 
                 gameUpdateRunning = false;
-                if (gamefinished) finish();
+                //System.out.println("################## got here ########" + String.valueOf(gamescore));
+                Intent intent = new Intent();
+                intent.putExtra("gamescore", String.valueOf(lastscore));
+                setResult(RESULT_OK, intent);
+                finish();
 
                 //wakeLock.release();
             }  // end thread run

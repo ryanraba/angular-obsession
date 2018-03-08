@@ -7,6 +7,8 @@ import android.graphics.Rect;
 import android.graphics.drawable.Drawable;
 import android.view.MotionEvent;
 import android.view.View;
+import android.widget.EditText;
+import android.widget.TextView;
 
 import java.util.Random;
 
@@ -16,6 +18,7 @@ class GameController {
     private Drawable projectile;
     private Drawable[] blocks;
     private Drawable wall;
+    private TextView scorebox;
     private Resources res;
 
     private int[] projectile_ids = {R.drawable.ball, R.drawable.ball2, R.drawable.ball3};
@@ -28,7 +31,7 @@ class GameController {
     private int projectile_x, projectile_y;
     private int projectile_sx, projectile_sy;
     private float launcher_angle, ball_angle;
-    private int bounce_count, turn_count;
+    private int bounce_count, turn_count, gamescore;
     private int projectile_increment, projectile_state;
 
     Random rand = new Random();
@@ -39,8 +42,7 @@ class GameController {
     ///////////////////////////
     // Constructor
     ///////////////////////////
-    GameController(Resources res_i, int width, int height, int density_i)
-    {
+    GameController(Resources res_i, TextView scorebox_i, int width, int height, int density_i) {
         int[] block_state = {0};
 
         res = res_i;
@@ -50,9 +52,8 @@ class GameController {
 
         launcher = res.getDrawable(R.drawable.launcher_basic_24dp);
         wall = res.getDrawable(R.drawable.wall);
-        blocks = new Drawable[10*5];
-        for (int ii=0; ii<blocks.length; ii++)
-        {
+        blocks = new Drawable[10 * 10];
+        for (int ii = 0; ii < blocks.length; ii++) {
             block_state[0] = rand.nextInt(3);
             blocks[ii] = res.getDrawable(block_ids[block_state[0]]);
             blocks[ii].setState(block_state);
@@ -60,11 +61,11 @@ class GameController {
         projectile_state = rand.nextInt(3);
         projectile = res.getDrawable(projectile_ids[projectile_state]);
 
-        launcher_wx = maxX/25;
-        launcher_y = maxY/20;
-        projectile_x = maxX/10;
-        projectile_y = maxX/10;
-        projectile_increment = (int)(10 * ((float)density_i / 160f));
+        launcher_wx = maxX / 25;
+        launcher_y = maxY / 20;
+        projectile_x = maxX / 10;
+        projectile_y = maxX / 10;
+        projectile_increment = (int) (10 * ((float) density_i / 160f));
 
         launcher_angle = 0;
         ball_angle = 0;
@@ -72,9 +73,14 @@ class GameController {
         projectile_sy = projectile_y;
         projectile_fired = false;
         bounce_count = 0;
-        turn_count = 0;
+        turn_count = 1;
         collision = false;
         gameover = false;
+        gamescore = 0;
+
+        scorebox = scorebox_i;
+        scorebox.setText("0");
+        scorebox.setHeight(projectile_sy);
     }
 
 
@@ -119,34 +125,35 @@ class GameController {
     ///////////////////////////////////////
     public void setBlocks(Canvas canvas)
     {
-        int ll,tt;
+        int ll,tt, hitcount;
         boolean visibleblocks = false;
 
         wall.setBounds(0, 0, maxX, turn_count*projectile_sy);
         wall.draw(canvas);
         if (Rect.intersects(wall.getBounds(), projectile.getBounds())) collision = true;
 
-        for (int ii=0; ii<blocks.length; ii++)
-        {
-            ll = (ii%10)*projectile_sx;
-            tt = (ii/10)*projectile_sy + turn_count*projectile_sy;
-            blocks[ii].setBounds(ll, tt, ll+projectile_sx, tt+projectile_sy);
+        hitcount = 0;
+        for (int ii=0; ii<blocks.length; ii++) {
+            ll = (ii % 10) * projectile_sx;
+            tt = (ii / 10) * projectile_sy + turn_count * projectile_sy;
+            blocks[ii].setBounds(ll, tt, ll + projectile_sx, tt + projectile_sy);
 
-            if (blocks[ii].isVisible() && (Rect.intersects(blocks[ii].getBounds(), projectile.getBounds())))
-            {
+            if (blocks[ii].isVisible() && (Rect.intersects(blocks[ii].getBounds(), projectile.getBounds()))) {
                 collision = true;
                 blocks[ii].setVisible(false, false);
+                hitcount = hitcount + 1;
             }
 
-            if (blocks[ii].isVisible() && (tt >= (maxY - launcher_y - 2*projectile_sy)))
+            if (blocks[ii].isVisible() && (tt >= (maxY - launcher_y - 2 * projectile_sy)))
                 gameover = true;
 
-            if (blocks[ii].isVisible())
-            {
+            if (blocks[ii].isVisible()) {
                 blocks[ii].draw(canvas);
                 visibleblocks = true;
             }
         }
+        gamescore = gamescore + 100*hitcount;
+        if (hitcount > 1) gamescore += 10 * (hitcount*hitcount);
         if (!visibleblocks) gameover = true;
     }
 
@@ -185,7 +192,7 @@ class GameController {
 
     ///////////////////////////////////////
     // runs game
-    public boolean animateGame(Canvas canvas)
+    public int animateGame(Canvas canvas)
     {
         int pw = projectile_sx/2;
 
@@ -206,7 +213,8 @@ class GameController {
         projectile.draw(canvas);
 
         //System.out.println("################## got here ###################");
-        return gameover;
+        if (gameover) gamescore = -1;
+        return gamescore;
     }
 
 }

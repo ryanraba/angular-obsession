@@ -8,12 +8,23 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.view.MotionEvent;
 import android.view.View;
+import android.widget.ArrayAdapter;
+import android.widget.ListView;
+import android.widget.TextView;
+
+import java.text.SimpleDateFormat;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.Date;
 
 /**
  * An example full-screen activity that shows and hides the system UI (i.e.
  * status bar and navigation/system bar) with user interaction.
  */
-public class FullscreenActivity extends AppCompatActivity {
+public class FullscreenActivity extends AppCompatActivity
+{
+    ArrayAdapter<String> hs_adapter;
 
     private static final boolean AUTO_HIDE = true;
     private static final int AUTO_HIDE_DELAY_MILLIS = 3000;
@@ -80,8 +91,8 @@ public class FullscreenActivity extends AppCompatActivity {
         setContentView(R.layout.activity_fullscreen);
 
         mVisible = true;
-        mControlsView = findViewById(R.id.fsLinearLayout1);
-        mContentView = findViewById(R.id.fsView);
+        //mControlsView = findViewById(R.id.fsLinearLayout1);
+        mContentView = findViewById(R.id.hslabel);
 
         // Set up the user interaction to manually show or hide the system UI.
         mContentView.setOnClickListener(new View.OnClickListener() {
@@ -96,6 +107,8 @@ public class FullscreenActivity extends AppCompatActivity {
         // while interacting with the UI.
         findViewById(R.id.start_button).setOnTouchListener(mDelayHideTouchListener);
 
+        hs_adapter = new ArrayAdapter<String>(this, R.layout.text_list_item);
+        ((ListView)findViewById(R.id.fsView)).setAdapter(hs_adapter);
     }
     //////////////////////////////////////////////////////////////
     //////////////////////////////////////////////////////////////
@@ -104,7 +117,43 @@ public class FullscreenActivity extends AppCompatActivity {
     //////////////////////////////////////////////////////////////
     public void startGame(View view) {
         Intent intent = new Intent(this, GameActivity.class);
-        startActivity(intent);
+        //startActivity(intent);
+        startActivityForResult(intent, 1);
+    }
+    //////////////////////////////////////////////////////////////
+
+
+    Comparator<String> sortHSList = new Comparator<String>() {
+        public int compare(String object1, String object2) {
+            int v1, v2;
+            v1 = Integer.valueOf(object1.toString().split("   ")[1]);
+            v2 = Integer.valueOf(object2.toString().split("   ")[1]);
+            return v2 - v1;
+        }
+    };
+
+    //////////////////////////////////////////////////////////////
+    protected void onActivityResult(int requestCode, int resultCode, Intent data)
+    {
+        int minscore = 0;
+        super.onActivityResult(requestCode, resultCode, data);
+        if(data != null)
+        {
+            String timeStamp = new SimpleDateFormat("MM/dd/yyyy HH:mm").format(new Date());
+            if (hs_adapter.getCount() >= 10)
+            {
+                String hs_item = hs_adapter.getItem(9);
+                minscore = Integer.valueOf(hs_item.split("   ")[1]);
+                if (Integer.valueOf(data.getStringExtra("gamescore")) >= minscore)
+                {
+                    hs_adapter.remove(hs_item);
+                    hs_adapter.add(timeStamp + "   " + data.getStringExtra("gamescore"));
+                }
+            }
+            else
+                hs_adapter.add(timeStamp + "   " + data.getStringExtra("gamescore"));
+            hs_adapter.sort(sortHSList);
+        }
     }
     //////////////////////////////////////////////////////////////
 
@@ -120,11 +169,8 @@ public class FullscreenActivity extends AppCompatActivity {
     }
 
     private void toggle() {
-        if (mVisible) {
-            hide();
-        } else {
-            show();
-        }
+        if (mVisible) hide();
+        else show();
     }
 
     private void hide() {
@@ -152,6 +198,7 @@ public class FullscreenActivity extends AppCompatActivity {
         mHideHandler.removeCallbacks(mHidePart2Runnable);
         mHideHandler.postDelayed(mShowPart2Runnable, UI_ANIMATION_DELAY);
     }
+
 
     /**
      * Schedules a call to hide() in delay milliseconds, canceling any
