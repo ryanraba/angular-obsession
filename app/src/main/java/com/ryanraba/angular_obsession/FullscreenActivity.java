@@ -2,16 +2,27 @@ package com.ryanraba.angular_obsession;
 
 import android.annotation.SuppressLint;
 import android.content.Intent;
+import android.graphics.Color;
 import android.support.v7.app.ActionBar;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.os.Handler;
+import android.text.Html;
+import android.text.Spanned;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.ArrayAdapter;
 import android.widget.ListView;
 import android.widget.TextView;
 
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.InputStreamReader;
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.Collections;
@@ -25,6 +36,8 @@ import java.util.Date;
 public class FullscreenActivity extends AppCompatActivity
 {
     ArrayAdapter<String> hs_adapter;
+    File hs_fid;
+    String hs_filename = "high_scores.txt";
 
     private static final boolean AUTO_HIDE = true;
     private static final int AUTO_HIDE_DELAY_MILLIS = 3000;
@@ -107,17 +120,67 @@ public class FullscreenActivity extends AppCompatActivity
         // while interacting with the UI.
         findViewById(R.id.start_button).setOnTouchListener(mDelayHideTouchListener);
 
-        hs_adapter = new ArrayAdapter<String>(this, R.layout.text_list_item);
+        hs_adapter = new ArrayAdapter<String>(this, R.layout.text_list_item) {
+            public View getView(int position, View convertView, ViewGroup parent) {
+                TextView textView = (TextView) super.getView(position, convertView, parent);
+                if (textView.getText().toString().startsWith("!!")) {
+                    textView.setText(textView.getText().toString().replace("!!",""));
+                    textView.setBackground(getDrawable(R.drawable.scoreline2));
+                }
+                else
+                    textView.setBackground(getDrawable(R.drawable.scoreline));
+                return textView;
+            }
+        };
+
         ((ListView)findViewById(R.id.fsView)).setAdapter(hs_adapter);
+
+        rebuildHSList();
     }
     //////////////////////////////////////////////////////////////
+
+
     //////////////////////////////////////////////////////////////
+    private void rebuildHSList()
+    {
+        hs_adapter.clear();
+        hs_fid = new File(getCacheDir(), hs_filename);
+        try {
+            BufferedReader buffer = new BufferedReader(new FileReader(hs_fid));
+            String line = buffer.readLine();
+            while (line != null) {
+                hs_adapter.add(line);
+                line = buffer.readLine();
+            }
+            buffer.close();
+        }
+        catch (Exception e) {  }
+    }
+
+
+    //////////////////////////////////////////////////////////////
+    private void writeOutHSList()
+    {
+        String line;
+        try {
+            BufferedWriter buffer = new BufferedWriter(new FileWriter(hs_fid));
+            for (int ii = 0; ii < hs_adapter.getCount(); ii++) {
+                line = hs_adapter.getItem(ii).toString();
+                if (line.startsWith("!!")) line = line.replace("!!", "");
+                buffer.write(line, 0, line.length());
+                buffer.newLine();
+            }
+            buffer.close();
+        }
+        catch (Exception e) { }
+    }
+
 
 
     //////////////////////////////////////////////////////////////
     public void startGame(View view) {
         Intent intent = new Intent(this, GameActivity.class);
-        //startActivity(intent);
+        writeOutHSList();
         startActivityForResult(intent, 1);
     }
     //////////////////////////////////////////////////////////////
@@ -126,8 +189,8 @@ public class FullscreenActivity extends AppCompatActivity
     Comparator<String> sortHSList = new Comparator<String>() {
         public int compare(String object1, String object2) {
             int v1, v2;
-            v1 = Integer.valueOf(object1.toString().split("   ")[1]);
-            v2 = Integer.valueOf(object2.toString().split("   ")[1]);
+            v1 = Integer.valueOf(object1.toString().split("         ")[1]);
+            v2 = Integer.valueOf(object2.toString().split("         ")[1]);
             return v2 - v1;
         }
     };
@@ -135,27 +198,30 @@ public class FullscreenActivity extends AppCompatActivity
     //////////////////////////////////////////////////////////////
     protected void onActivityResult(int requestCode, int resultCode, Intent data)
     {
-        int minscore = 0;
         super.onActivityResult(requestCode, resultCode, data);
+
+        rebuildHSList();
         if(data != null)
         {
-            String timeStamp = new SimpleDateFormat("MM/dd/yyyy HH:mm").format(new Date());
-            if (hs_adapter.getCount() >= 10)
-            {
-                String hs_item = hs_adapter.getItem(9);
-                minscore = Integer.valueOf(hs_item.split("   ")[1]);
-                if (Integer.valueOf(data.getStringExtra("gamescore")) >= minscore)
-                {
-                    hs_adapter.remove(hs_item);
-                    hs_adapter.add(timeStamp + "   " + data.getStringExtra("gamescore"));
-                }
-            }
-            else
-                hs_adapter.add(timeStamp + "   " + data.getStringExtra("gamescore"));
+            String timeStamp = new SimpleDateFormat("MM/dd/yyyy").format(new Date());
+            String scoreLine = "!!" + timeStamp + "         " + data.getStringExtra("gamescore");
+            if (hs_adapter.getCount() >= 10) hs_adapter.remove(hs_adapter.getItem(9));
+            hs_adapter.add(scoreLine);
             hs_adapter.sort(sortHSList);
         }
     }
     //////////////////////////////////////////////////////////////
+
+
+
+    //////////////////////////////////////////////////////////////
+    public void onStop()
+    {
+        super.onStop();
+        writeOutHSList();
+    }
+
+
 
 
     @Override

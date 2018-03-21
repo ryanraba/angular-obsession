@@ -3,9 +3,9 @@
     android:dither="true"
     android:shape="oval" >
     <gradient
-        android:startColor="#103e06"
-        android:gradientRadius="30dp"
-        android:endColor="#2fe110"
+        android:startColor="#0726ef"
+        android:gradientRadius="20dp"
+        android:endColor="#031966"
         android:type="radial"
         android:useLevel="false" />
     <size

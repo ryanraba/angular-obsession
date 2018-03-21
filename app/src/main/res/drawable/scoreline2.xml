@@ -5,17 +5,14 @@
     <corners
         android:radius="5dp" />
     <gradient
-        android:endColor="#5c0603"
+        android:angle="90"
+        android:endColor="#635f5f"
+        android:centerColor="#1de40a"
+        android:startColor="#635f5f"
         android:gradientRadius="20dp"
-        android:startColor="#d11c0e"
-        android:type="radial"
+        android:type="linear"
         android:useLevel="false" />
     <size
         android:height="50dp"
         android:width="50dp" />
-    <stroke
-        android:width="3dp"
-        android:color="#0b0b0b"
-        android:dashWidth="2dp"
-        android:dashGap="1dp" />
 </shape>
