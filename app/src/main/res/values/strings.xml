@@ -1,10 +1,4 @@
 <resources>
-    <string name="app_name">angular-obsession</string>
-
-    <string name="dummy_button">Dummy Button</string>
-    <string name="dummy_content">DUMMY\nCONTENT</string>
-
-    <string name="title_activity_game">GameActivity</string>
-
-    <string name="title_activity_summary">SummaryActivity</string>
+    <string name="app_name">AngleObs</string>
+    <string name="full_name">Angular Obsession</string>
 </resources>

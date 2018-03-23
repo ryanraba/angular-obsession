@@ -1,29 +1,19 @@
 package com.ryanraba.angular_obsession;
 
-import android.annotation.SuppressLint;
 import android.content.Intent;
 import android.graphics.Canvas;
 import android.media.AudioAttributes;
 import android.media.AudioManager;
 import android.media.MediaPlayer;
-import android.media.SoundPool;
-import android.support.v7.app.ActionBar;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
-import android.os.Handler;
 import android.util.DisplayMetrics;
-import android.view.MotionEvent;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.View;
-import android.widget.EditText;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 
-/**
- * An example full-screen activity that shows and hides the system UI (i.e.
- * status bar and navigation/system bar) with user interaction.
- */
 public class GameActivity extends AppCompatActivity
 {
     Thread tr = null;
@@ -33,10 +23,8 @@ public class GameActivity extends AppCompatActivity
     private SurfaceView surface;
     private SurfaceHolder holder;
     Canvas canvas;
-    MediaPlayer hitplayer, missplayer, launchplayer;
-    int gamescore = 0;
-
-    private View mContentView;
+    MediaPlayer hitplayer, bighitplayer, missplayer, launchplayer;
+    private int gamescore;
 
     ////////////////////////////////////////////////////////////////
     ////////////////////////////////////////////////////////////////
@@ -45,21 +33,11 @@ public class GameActivity extends AppCompatActivity
 
         setContentView(R.layout.activity_game);
 
-        mContentView = findViewById(R.id.gameView);
-        mContentView.setSystemUiVisibility(View.SYSTEM_UI_FLAG_LOW_PROFILE
-                                | View.SYSTEM_UI_FLAG_FULLSCREEN
-                                | View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                                | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-                                | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                                | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION);
-
-        ActionBar actionBar = getSupportActionBar();
-        if (actionBar != null) {
-            actionBar.hide();
-        }
+        getSupportActionBar().hide();
 
         DisplayMetrics screen = new DisplayMetrics();
-        getWindowManager().getDefaultDisplay().getMetrics(screen);MediaPlayer.create(this, R.raw.launch2);
+        getWindowManager().getDefaultDisplay().getMetrics(screen);
+        int navheight = getResources().getDimensionPixelSize(getResources().getIdentifier("navigation_bar_height", "dimen", "android"));
 
         AudioAttributes attributes = new AudioAttributes.Builder()
                 .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
@@ -69,61 +47,52 @@ public class GameActivity extends AppCompatActivity
 
         launchplayer = MediaPlayer.create(this, R.raw.launch2, attributes, ((AudioManager)getSystemService(this.AUDIO_SERVICE)).generateAudioSessionId());
         hitplayer = MediaPlayer.create(this, R.raw.hit5, attributes, ((AudioManager)getSystemService(this.AUDIO_SERVICE)).generateAudioSessionId());
+        bighitplayer = MediaPlayer.create(this, R.raw.hit7, attributes, ((AudioManager)getSystemService(this.AUDIO_SERVICE)).generateAudioSessionId());
         missplayer = MediaPlayer.create(this, R.raw.miss2, attributes, ((AudioManager)getSystemService(this.AUDIO_SERVICE)).generateAudioSessionId());
-
-        gameView = new GameController(getResources(),
-                (TextView)findViewById(R.id.scoreBox),
-                (ProgressBar)findViewById(R.id.turnTracker),
-                launchplayer,
-                hitplayer,
-                missplayer,
-        screen.widthPixels, screen.heightPixels, screen.densityDpi);
 
         surface = (SurfaceView) findViewById(R.id.gameView);
         holder = surface.getHolder();
 
-        // assign function to handle touches to graph
-        surface.setOnTouchListener(gameView.launchListener);
+        ((TextView)findViewById(R.id.winMessage)).setVisibility(View.INVISIBLE);
+
+        gamescore = 0;
 
     }
     /////////////////////////////////////////////////////////////////
     /////////////////////////////////////////////////////////////////
 
-
-    public void onResume()
+    public void onWindowFocusChanged(boolean hasFocus)
     {
-        super.onResume();
-        if (gameUpdateRunning == false)
+        super.onWindowFocusChanged(hasFocus);
+        if (hasFocus) {
+            gameView = new GameController(getResources(),
+                    (TextView)findViewById(R.id.scoreBox),
+                    (ProgressBar)findViewById(R.id.turnTracker),
+                    launchplayer,
+                    hitplayer,
+                    bighitplayer,
+                    missplayer,
+                    surface.getWidth(), surface.getHeight());
+
+            // assign function to handle touches to graph
+            surface.setOnTouchListener(gameView.launchListener);
+
+            // start game
             gameUpdateThread();
+        }
     }
 
     public void onPause()
     {
-        super.onPause();
-        gameUpdateRunning = false;
-        try { if (tr != null) tr.join(); }
-        catch (InterruptedException ex) {}
-    }
-
-    public void onStop()
-    {
-        super.onStop();
         launchplayer.release();
         hitplayer.release();
+        bighitplayer.release();
         missplayer.release();
         gameUpdateRunning = false;
         try { if (tr != null) tr.join(); }
         catch (InterruptedException ex) {}
+        super.onPause();
     }
-
-    public void onDestroy()
-    {
-        super.onDestroy();
-        gameUpdateRunning = false;
-        try { if (tr != null) tr.join(); }
-        catch (InterruptedException ex) {}
-    }
-
 
 
     ///////////////////////////////////////
@@ -132,14 +101,12 @@ public class GameActivity extends AppCompatActivity
     {
         if (gameUpdateRunning) return;
         gameUpdateRunning = true;
-        gamescore = 0;
 
         tr = new Thread() {
             public void run() {
 
-                int lastscore = -1;
-
-                while (gameUpdateRunning && (gamescore >= 0))
+                int[] rc = {0, -1, 0};  // gameover, remaining blocks, gamescore
+                while (gameUpdateRunning && (rc[0] == 0))
                 {
                     try
                     {
@@ -155,25 +122,30 @@ public class GameActivity extends AppCompatActivity
                         continue;
 
                     canvas = holder.lockCanvas();
-
-                    gamescore = gameView.animateGame(canvas);
-
+                    rc = gameView.animateGame(canvas);
                     holder.unlockCanvasAndPost(canvas);
 
-                    if ((gamescore != lastscore) && (gamescore >= 0))
-                        GameActivity.this.runOnUiThread(new Runnable() {
+                    gamescore = rc[2];
+                    GameActivity.this.runOnUiThread(new Runnable() {
                             public void run() {
-                                ((TextView)findViewById(R.id.scoreBox)).setText(String.valueOf(gamescore));
-                            }
-                        });
-
-                    if (gamescore >= 0) lastscore = gamescore;
+                                ((TextView)findViewById(R.id.scoreBox)).setText(String.valueOf(gamescore)); }});
                 }
 
+                if ((rc[0] == 1) && (rc[1] == 0))
+                {
+                    GameActivity.this.runOnUiThread(new Runnable() {
+                        public void run() { ((TextView)findViewById(R.id.winMessage)).setVisibility(View.VISIBLE); }});
+                    for (int zz=0; zz<10; zz++)
+                    {
+                        if (!gameUpdateRunning) break;
+                        try { Thread.sleep(100); }
+                        catch (Exception e) { }
+                    }
+                }
                 gameUpdateRunning = false;
                 //System.out.println("################## got here ########" + String.valueOf(gamescore));
                 Intent intent = new Intent();
-                intent.putExtra("gamescore", String.valueOf(lastscore));
+                intent.putExtra("gamescore", String.valueOf(gamescore));
                 setResult(RESULT_OK, intent);
                 finish();
 

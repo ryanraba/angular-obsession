@@ -36,4 +36,13 @@
         android:layout_marginRight="5dp"
         android:background="@drawable/scoreline"/>
 
+    <TextView
+        android:id="@+id/winMessage"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:textStyle="bold"
+        android:background="@drawable/gamecomplete"
+        android:text="All Blocks Destroyed"
+        android:gravity="center_vertical|center_horizontal"/>
+
 </FrameLayout>

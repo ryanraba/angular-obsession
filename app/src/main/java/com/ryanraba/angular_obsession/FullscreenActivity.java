@@ -1,15 +1,11 @@
 package com.ryanraba.angular_obsession;
 
-import android.annotation.SuppressLint;
 import android.content.Intent;
-import android.graphics.Color;
-import android.support.v7.app.ActionBar;
+import android.media.AudioAttributes;
+import android.media.AudioManager;
+import android.media.MediaPlayer;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
-import android.os.Handler;
-import android.text.Html;
-import android.text.Spanned;
-import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ArrayAdapter;
@@ -19,130 +15,47 @@ import android.widget.TextView;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileReader;
 import java.io.FileWriter;
-import java.io.InputStreamReader;
 import java.text.SimpleDateFormat;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.Date;
 
-/**
- * An example full-screen activity that shows and hides the system UI (i.e.
- * status bar and navigation/system bar) with user interaction.
- */
-public class FullscreenActivity extends AppCompatActivity
-{
+public class FullscreenActivity extends AppCompatActivity {
     ArrayAdapter<String> hs_adapter;
     File hs_fid;
     String hs_filename = "high_scores.txt";
-
-    private static final boolean AUTO_HIDE = true;
-    private static final int AUTO_HIDE_DELAY_MILLIS = 3000;
-    private static final int UI_ANIMATION_DELAY = 300;
-    private final Handler mHideHandler = new Handler();
-    private View mContentView;
-    private final Runnable mHidePart2Runnable = new Runnable() {
-        @SuppressLint("InlinedApi")
-        @Override
-        public void run() {
-            // Delayed removal of status and navigation bar
-
-            // Note that some of these constants are new as of API 16 (Jelly Bean)
-            // and API 19 (KitKat). It is safe to use them, as they are inlined
-            // at compile-time and do nothing on earlier devices.
-            mContentView.setSystemUiVisibility(View.SYSTEM_UI_FLAG_LOW_PROFILE
-                    | View.SYSTEM_UI_FLAG_FULLSCREEN
-                    | View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                    | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-                    | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                    | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION);
-        }
-    };
-    private View mControlsView;
-    private final Runnable mShowPart2Runnable = new Runnable() {
-        @Override
-        public void run() {
-            // Delayed display of UI elements
-            ActionBar actionBar = getSupportActionBar();
-            if (actionBar != null) {
-                actionBar.show();
-            }
-            mControlsView.setVisibility(View.VISIBLE);
-        }
-    };
-    private boolean mVisible;
-    private final Runnable mHideRunnable = new Runnable() {
-        @Override
-        public void run() {
-            hide();
-        }
-    };
-    /**
-     * Touch listener to use for in-layout UI controls to delay hiding the
-     * system UI. This is to prevent the jarring behavior of controls going away
-     * while interacting with activity UI.
-     */
-    private final View.OnTouchListener mDelayHideTouchListener = new View.OnTouchListener() {
-        @Override
-        public boolean onTouch(View view, MotionEvent motionEvent) {
-            if (AUTO_HIDE) {
-                delayedHide(AUTO_HIDE_DELAY_MILLIS);
-            }
-            return false;
-        }
-    };
+    int hs_height = 100;
+    boolean gamestarted = false;
+    MediaPlayer finishplayer;
 
     ////////////////////////////////////////////////////////////
     ////////////////////////////////////////////////////////////
-    @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
         setContentView(R.layout.activity_fullscreen);
 
-        mVisible = true;
-        //mControlsView = findViewById(R.id.fsLinearLayout1);
-        mContentView = findViewById(R.id.hslabel);
-
-        // Set up the user interaction to manually show or hide the system UI.
-        mContentView.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                toggle();
-            }
-        });
-
-        // Upon interacting with UI controls, delay any scheduled hide()
-        // operations to prevent the jarring behavior of controls going away
-        // while interacting with the UI.
-        findViewById(R.id.start_button).setOnTouchListener(mDelayHideTouchListener);
-
         hs_adapter = new ArrayAdapter<String>(this, R.layout.text_list_item) {
             public View getView(int position, View convertView, ViewGroup parent) {
                 TextView textView = (TextView) super.getView(position, convertView, parent);
                 if (textView.getText().toString().startsWith("!!")) {
-                    textView.setText(textView.getText().toString().replace("!!",""));
+                    textView.setText(textView.getText().toString().replace("!!", ""));
                     textView.setBackground(getDrawable(R.drawable.scoreline2));
-                }
-                else
+                } else
                     textView.setBackground(getDrawable(R.drawable.scoreline));
+                textView.getLayoutParams().height = hs_height/11;
                 return textView;
             }
         };
 
-        ((ListView)findViewById(R.id.fsView)).setAdapter(hs_adapter);
-
-        rebuildHSList();
+        ((ListView) findViewById(R.id.fsView)).setAdapter(hs_adapter);
+        gamestarted = false;
     }
     //////////////////////////////////////////////////////////////
 
-
     //////////////////////////////////////////////////////////////
-    private void rebuildHSList()
-    {
+    private void rebuildHSList() {
         hs_adapter.clear();
         hs_fid = new File(getCacheDir(), hs_filename);
         try {
@@ -153,14 +66,12 @@ public class FullscreenActivity extends AppCompatActivity
                 line = buffer.readLine();
             }
             buffer.close();
-        }
-        catch (Exception e) {  }
+        } catch (Exception e) { }
     }
 
 
     //////////////////////////////////////////////////////////////
-    private void writeOutHSList()
-    {
+    private void writeOutHSList() {
         String line;
         try {
             BufferedWriter buffer = new BufferedWriter(new FileWriter(hs_fid));
@@ -171,16 +82,16 @@ public class FullscreenActivity extends AppCompatActivity
                 buffer.newLine();
             }
             buffer.close();
+        } catch (Exception e) {
         }
-        catch (Exception e) { }
     }
-
 
 
     //////////////////////////////////////////////////////////////
     public void startGame(View view) {
         Intent intent = new Intent(this, GameActivity.class);
         writeOutHSList();
+        gamestarted = true;
         startActivityForResult(intent, 1);
     }
     //////////////////////////////////////////////////////////////
@@ -196,13 +107,21 @@ public class FullscreenActivity extends AppCompatActivity
     };
 
     //////////////////////////////////////////////////////////////
-    protected void onActivityResult(int requestCode, int resultCode, Intent data)
-    {
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
 
+        AudioAttributes attributes = new AudioAttributes.Builder()
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .setFlags(AudioAttributes.FLAG_AUDIBILITY_ENFORCED)
+                .setUsage(AudioAttributes.USAGE_GAME)
+                .build();
+
+        finishplayer = MediaPlayer.create(this, R.raw.hitxl, attributes, ((AudioManager)getSystemService(this.AUDIO_SERVICE)).generateAudioSessionId());
+        finishplayer.setVolume((float)0.99, (float)0.99);
+        finishplayer.start();
+
         rebuildHSList();
-        if(data != null)
-        {
+        if (data != null) {
             String timeStamp = new SimpleDateFormat("MM/dd/yyyy").format(new Date());
             String scoreLine = "!!" + timeStamp + "         " + data.getStringExtra("gamescore");
             if (hs_adapter.getCount() >= 10) hs_adapter.remove(hs_adapter.getItem(9));
@@ -213,65 +132,27 @@ public class FullscreenActivity extends AppCompatActivity
     //////////////////////////////////////////////////////////////
 
 
+    //////////////////////////////////////////////////////////////
+    public void onResume() {
+        super.onResume();
+    }
+
+    public void onWindowFocusChanged(boolean hasFocus)
+    {
+        super.onWindowFocusChanged(hasFocus);
+        if (hasFocus && !gamestarted) {
+            hs_height = ((ListView) findViewById(R.id.fsView)).getHeight();
+            rebuildHSList();
+        }
+    }
 
     //////////////////////////////////////////////////////////////
-    public void onStop()
-    {
-        super.onStop();
+    public void onStop() {
+        if (finishplayer != null) finishplayer.release();
         writeOutHSList();
+        super.onStop();
     }
 
 
-
-
-    @Override
-    protected void onPostCreate(Bundle savedInstanceState) {
-        super.onPostCreate(savedInstanceState);
-
-        // Trigger the initial hide() shortly after the activity has been
-        // created, to briefly hint to the user that UI controls
-        // are available.
-        delayedHide(100);
-    }
-
-    private void toggle() {
-        if (mVisible) hide();
-        else show();
-    }
-
-    private void hide() {
-        // Hide UI first
-        ActionBar actionBar = getSupportActionBar();
-        if (actionBar != null) {
-            actionBar.hide();
-        }
-        //mControlsView.setVisibility(View.GONE);
-        mVisible = false;
-
-        // Schedule a runnable to remove the status and navigation bar after a delay
-        mHideHandler.removeCallbacks(mShowPart2Runnable);
-        mHideHandler.postDelayed(mHidePart2Runnable, UI_ANIMATION_DELAY);
-    }
-
-    @SuppressLint("InlinedApi")
-    private void show() {
-        // Show the system bar
-        mContentView.setSystemUiVisibility(View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION);
-        mVisible = true;
-
-        // Schedule a runnable to display UI elements after a delay
-        mHideHandler.removeCallbacks(mHidePart2Runnable);
-        mHideHandler.postDelayed(mShowPart2Runnable, UI_ANIMATION_DELAY);
-    }
-
-
-    /**
-     * Schedules a call to hide() in delay milliseconds, canceling any
-     * previously scheduled calls.
-     */
-    private void delayedHide(int delayMillis) {
-        mHideHandler.removeCallbacks(mHideRunnable);
-        mHideHandler.postDelayed(mHideRunnable, delayMillis);
-    }
 }
+

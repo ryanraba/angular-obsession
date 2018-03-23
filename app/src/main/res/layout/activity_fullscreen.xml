@@ -23,7 +23,7 @@
     <ListView
         android:id="@+id/fsView"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="match_parent"
         android:layout_centerHorizontal="true"
         android:foregroundGravity="top"
         android:layout_below="@+id/hslabel"
